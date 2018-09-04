@@ -3,6 +3,7 @@ package com.iceniro.ticket.dataProcess;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.iceniro.ticket.bean.TrainDetail;
+import com.iceniro.ticket.exception.ExceptionUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -33,7 +34,7 @@ public class DeviousAnalysis {
         int left = transNum.decrementAndGet();
         if (left == 0) {
             logger.error("所有车辆分析已完成！！！");
-            System.exit(-1);
+            //System.exit(-1);
             DataProcess.main(new String[]{"a"});
         }
     }
@@ -64,32 +65,37 @@ public class DeviousAnalysis {
         }
 
         public void run() {
-            String fromName = StationStore.getName(from);
-            String toName = StationStore.getName(to);
-            boolean before = true, after = false;
+            try {
+                String fromName = StationStore.getName(from);
+                String toName = StationStore.getName(to);
+                boolean before = true, after = false;
 
-            List<String> beforeStations = new ArrayList<String>(), afterStations = new ArrayList<String>();
-            for (String currentStation : stationNames) {
-                if (fromName.equals(currentStation)) {
-                    before = false;
-                }
-                if (before) {
-                    beforeStations.add(currentStation);
-                }
-                if (after) {
-                    afterStations.add(currentStation);
-                }
-                if (toName.equals(currentStation)) {
+                List<String> beforeStations = new ArrayList<String>(), afterStations = new ArrayList<String>();
+                for (String currentStation : stationNames) {
+                    if (fromName.equals(currentStation)) {
+                        before = false;
+                        continue;
+                    }
+                    if (before) {
+                        beforeStations.add(currentStation);
+                    }
+                    if (!before) {
+                        afterStations.add(currentStation);
+                    }
+                /*if (toName.equals(currentStation)) {
                     after = true;
+                }*/
                 }
-            }
-            logger.info("{}途径站点查询开始....", trainCode);
-            doDeviousBefore(beforeStations, to);
-            doDeviousAfter(from, afterStations);
-            logger.info("{}途径站点查询已经完成,还剩{}趟", trainCode, transNum.get() - 1);
-            decreaseTrainNum();
-            if (analysisLevel == 2) {
-                doBetweenContinue();
+                logger.info("{}途径站点查询开始....", trainCode);
+                doDeviousBefore(beforeStations, to);
+                doDeviousAfter(from, afterStations);
+                logger.info("{}途径站点查询已经完成,还剩{}趟", trainCode, transNum.get() - 1);
+                decreaseTrainNum();
+                if (analysisLevel == 2) {
+                    doBetweenContinue();
+                }
+            }catch (Exception e){
+                logger.error("AnalysisTask-Err:{}", ExceptionUtil.getMessage(e));
             }
         }
 
@@ -116,13 +122,13 @@ public class DeviousAnalysis {
         return (String) stationInfo.get("station_name");
     }
 
-    private static void doDeviousAfter(String from, List<String> afterStations) {
+    private static void doDeviousAfter(String from, List<String> afterStations) throws InterruptedException {
         for (String stationName : afterStations) {
             DataProcess.eachTrainHasRemain(from, StationStore.getKey(stationName), false);
         }
     }
 
-    private static void doDeviousBefore(List<String> beforeStations, String to) {
+    private static void doDeviousBefore(List<String> beforeStations, String to) throws InterruptedException {
         for (String stationName : beforeStations) {
             DataProcess.eachTrainHasRemain(StationStore.getKey(stationName), to, false);
         }

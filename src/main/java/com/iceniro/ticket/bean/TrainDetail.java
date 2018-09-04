@@ -42,7 +42,26 @@ public class TrainDetail {
     //硬座
     public int hardSet;
 
+    @Override
+    public String toString() {
+        return "TrainDetail{" +
+                "trainCode='" + trainCode + '\'' +
+                ", onBorad='" + onBorad + '\'' +
+                ", getOff='" + getOff + '\'' +
+                ", onBoradTimeStr='" + onBoradTimeStr + '\'' +
+                ", getOffTimeStr='" + getOffTimeStr + '\'' +
+                ", secondSetNum=" + secondSetNum +
+                ", softBed=" + softBed +
+                ", hardBed=" + hardBed +
+                ", softSet=" + softSet +
+                ", hardSet=" + hardSet +
+                '}';
+    }
+
     public TrainDetail(String[] detail) {
+        if(!"预订".equals(detail[1])){
+            return;
+        }
         try {
             //列车代号
             this.trainNo = detail[2];
@@ -80,7 +99,7 @@ public class TrainDetail {
             this.getOffTimeStr = date + " " + endTime;
             this.costTimes = detail[10];
         } catch (Exception e) {
-            e.printStackTrace();
+            //who care
         }
     }
 
