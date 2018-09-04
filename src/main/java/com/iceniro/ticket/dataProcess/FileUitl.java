@@ -15,7 +15,7 @@ import java.util.List;
 public class FileUitl {
 
     private final static Logger logger = LogManager.getLogger(FileUitl.class);
-    static String path = "E:/stations";
+    static String path = FileUitl.class.getClassLoader().getResource("stations").getPath();
 
     public static List<String> readFile() {
         try {
