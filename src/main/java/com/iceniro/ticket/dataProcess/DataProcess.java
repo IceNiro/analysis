@@ -24,32 +24,43 @@ public class DataProcess {
     private final static Logger logger = LogManager.getLogger(DataProcess.class);
     private final static List<String> cache = new ArrayQueue<String>(3000);
     static String GET_ONBOARD = "杭州";
-    static String GET_OFF = "长沙";
+    static String GET_OFF = "武昌";
     static String date = "2018-10-01";
-    static int DATE_BEFORE = 3;
+    static int DATE_COMPITE_MODE = 3;
     static boolean STATION_CACHE = true;
-    static boolean SEND_DING_MSG = false;
+    static boolean SEND_DING_MSG = true;
     //指定车辆
     static String SPECIAL_TRAIN_LIST = "";
     static ExecutorService printThread = Executors.newFixedThreadPool(2);
-    static Date passTime;
-    static Date GET_OFF_TIME;
+    static String ON_BORAD_TIME_LIMIT = "2018-10-01";
+    static String GET_OFF_TIME_LIMIT = "";
 
 
-    private static boolean timeSuitablt(Date onBoradTime,Date getOffTime) {
-        if (DATE_BEFORE == 1) {
-            return getOffTime.before(GET_OFF_TIME);
-        } else if(DATE_BEFORE == 2){
-            return onBoradTime.after(passTime);
+    private static boolean timeSuitablt(Date onBoradTime, Date getOffTime) {
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            Date onLimit, offLimit;
+            onLimit = sdf.parse(ON_BORAD_TIME_LIMIT);
+            offLimit = sdf.parse(GET_OFF_TIME_LIMIT);
+            //上车时间 在规定时间之前
+            if (DATE_COMPITE_MODE == 1) {
+                return onBoradTime.after(onLimit);
+            } else if (DATE_COMPITE_MODE == 2) {
+                //到达时间在规定时间之前
+                return getOffTime.before(offLimit);
+            } else if (DATE_COMPITE_MODE == 3) {
+                return onBoradTime.after(onLimit) && getOffTime.before(offLimit);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
+
         return true;
     }
 
     public static void main(String[] args) {
         try {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            passTime = sdf.parse(date + " 21:30:00");
-            GET_OFF_TIME = sdf.parse(date + " 13:30:00");
+
             logger.error("{}到{}车票情况分析开始。。。", GET_ONBOARD, GET_OFF);
             eachTrainHasRemain(StationStore.getKey(GET_ONBOARD), StationStore.getKey(GET_OFF), true);
             logger.info("{}到{}车票情况分析结束，请查看日志", GET_ONBOARD, GET_OFF);
@@ -80,10 +91,10 @@ public class DataProcess {
         String[] trains = trainsStr.split(",");
         if (doAnalysis) {
             logger.error("一共{}趟列车", trains.length);
-            if(!"".equals(SPECIAL_TRAIN_LIST)){
-                logger.error("只分析部分车：{}",SPECIAL_TRAIN_LIST);
+            if (!"".equals(SPECIAL_TRAIN_LIST)) {
+                logger.error("只分析部分车：{}", SPECIAL_TRAIN_LIST);
                 DeviousAnalysis.setTransNum(SPECIAL_TRAIN_LIST.split(",").length);
-            }else{
+            } else {
                 DeviousAnalysis.setTransNum(trains.length);
             }
         }
@@ -116,7 +127,7 @@ public class DataProcess {
             /*if(Double.parseDouble(detail.costTimes) > COST_LIMIT){
                 return;
             }*/
-            logger.warn("列车信息：{}",detail.toString());
+            logger.error("列车信息：{}", detail.toString());
             //查询列车途径站点
             JSONObject trainsStations = HttpUtil.testAvoidS(HttpUtil.buildQueryTrainParamStr(detail.trainNo, detail.onBorad, detail.getOff, date));
             if (trainsStations == null) {
@@ -128,7 +139,7 @@ public class DataProcess {
             if (detail.isStationContain(GET_ONBOARD, GET_OFF)) {
                 printThread.submit(new PrintTask(detail));
             }
-            logger.warn("列车不能站点不匹配");
+            logger.error("列车不能站点不匹配");
         }
         if (doAnalysis) {
             if (!passByStationQueried) {
@@ -169,24 +180,25 @@ public class DataProcess {
                 Map<String, Object> trainsPrice = trainsStations.getJSONObject("data").getInnerMap();
                 prices = detail.trainCode.startsWith("K") ? getNormalPrice(trainsPrice) : getDGPrice(trainsPrice);
             }
-            if (timeSuitablt(detail.onBoradTime,detail.getOffTime)) {
+            if (timeSuitablt(detail.onBoradTime, detail.getOffTime)) {
                 String context = String.format("%1s到 %2s的:%3s列车有余票，票数：%4s，上车时间：%5s,到达时间：%8s,历时：%6s,票价：%7s", StationStore.getName(detail.onBorad),
-                        StationStore.getName(detail.getOff), detail.trainCode, detail.getRemainSetNum(), detail.onBoradTimeStr, detail.costTimes, prices,detail.getOffTimeStr);
+                        StationStore.getName(detail.getOff), detail.trainCode, detail.getRemainSetNum(), detail.onBoradTimeStr, detail.costTimes, prices, detail.getOffTimeStr);
                 logger.error("{} 到 {}的:{}列车有余票，票数：{}，上车时间：{},到达时间：{},历时：{},票价：{}", StationStore.getName(detail.onBorad),
-                        StationStore.getName(detail.getOff), detail.trainCode, detail.getRemainSetNum(), detail.onBoradTimeStr,detail.getOffTimeStr, detail.costTimes, prices);
-                if(SEND_DING_MSG) {
+                        StationStore.getName(detail.getOff), detail.trainCode, detail.getRemainSetNum(), detail.onBoradTimeStr, detail.getOffTimeStr, detail.costTimes, prices);
+                if (SEND_DING_MSG) {
                     DingMsgSender.sendDingMsgDirect(context);
                 }
             }
         }
 
-        private static String getNormalPrice(Map<String,Object> priceInfo){
-            return "软卧:" + priceInfo.get("A4") + ",硬卧：" + priceInfo.get("A3") + "硬座:" +  priceInfo.get("A1");
+        private static String getNormalPrice(Map<String, Object> priceInfo) {
+            return "软卧:" + priceInfo.get("A4") + ",硬卧：" + priceInfo.get("A3") + "硬座:" + priceInfo.get("A1");
         }
 
-        private static String getDGPrice(Map<String,Object> priceInfo){
+        private static String getDGPrice(Map<String, Object> priceInfo) {
             return "二等座:" + priceInfo.get("0") + ",一等座：" + priceInfo.get("M");
         }
+
         public void run() {
             printTrainInfo(detail);
         }
